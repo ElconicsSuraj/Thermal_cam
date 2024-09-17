@@ -1,0 +1,55 @@
+import time
+import board
+import busio
+import numpy as np
+import adafruit_mlx90640
+import matplotlib.pyplot as plt
+
+# Setup I2C
+i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)
+
+# Initialize the MLX90640 with I2C communication
+mlx = adafruit_mlx90640.MLX90640(i2c)
+
+# Set the refresh rate to 1 Hz
+mlx.refresh_rate = adafruit_mlx90640.RefreshRate.REFRESH_1_HZ
+
+# Define the shape of the MLX90640 (24x32)
+mlx_shape = (24, 32)
+
+# Setup the figure for plotting
+plt.ion()  # Enables interactive plotting
+fig, ax = plt.subplots(figsize=(12, 7))
+therm1 = ax.imshow(np.zeros(mlx_shape), vmin=0, vmax=60)  # Start plot with zeros
+cbar = fig.colorbar(therm1)  # Setup colorbar for temperatures
+cbar.set_label('Temperature [$^{\circ}$C]', fontsize=14)  # Colorbar label
+
+# Setup array for storing all 768 temperatures
+frame = np.zeros((24 * 32,))
+t_array = []
+
+# Continuous loop to capture and display data
+while True:
+    t1 = time.monotonic()
+
+    try:
+        mlx.getFrame(frame)  # Read MLX temperatures into frame variable
+        data_array = np.reshape(frame, mlx_shape)  # Reshape to 24x32
+        therm1.set_data(np.fliplr(data_array))  # Flip left to right
+
+        # Set bounds for the color range
+        therm1.set_clim(vmin=np.min(data_array), vmax=np.max(data_array))
+        cbar.update_normal(therm1)  # Update colorbar range
+
+        # Update the plot
+        plt.pause(0.001)
+
+        # Save figure (optional, for speed you can comment this out)
+        fig.savefig('mlx90640_test_fliplr.png', dpi=300, facecolor='#FCFCFC', bbox_inches='tight')
+
+        # Calculate and print the sample rate (frames per second)
+        t_array.append(time.monotonic() - t1)
+        print('Sample Rate: {0:2.1f}fps'.format(len(t_array) / np.sum(t_array)))
+
+    except ValueError:
+        continue  # If error, retry reading the frame
